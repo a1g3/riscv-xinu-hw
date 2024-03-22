@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="iso-8859-1"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+        "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+
+<head>
+  <title>Project 6</title>
+  <meta http-equiv="content-type"
+        content="text/html;charset=UTF-8" />
+  <meta http-equiv="Content-Style-Type" content="text/css" />
+  <meta name="author" content="Dennis Brylow" />
+  <meta name="copyright" content="Dennis Brylow 2023" />
+  <meta name="robots" content="all" />
+  <link rel="icon" href="../assets/images/favicon.png" type="image/x-icon" />
+  <link rel="shortcut icon" href="../assets/images/favicon.png" type="image/x-icon" />
+  <link rel="stylesheet" href="../styles.css" />
+</head>
+
+<body>
+<div class="TitleBlock">
+  <h1 id="FullCourseName"></h1>
+  <h2 id="Semester"></h2>
+
+  <h2>Project #6: Priority Scheduling and Preemption</h2>
+</div>
+
+<div>
+  <p id="ProjectDeadline6"></p>
+  
+  <p> <b>Submit:</b> Turn in your
+    entire <code>xinu-hw6</code> directory
+    source files using the
+    <tt>turnin</tt> command on <tt>morbius.mscsnet.mu.edu</tt> or
+    one of the other
+    <a href="https://www.cs.mu.edu/~brylow/machine.txt">
+      Systems Lab machines</a>.  Please run "<tt>make clean</tt>" in the
+    <tt>compile/</tt> subdirectory just before submission to reduce
+  unnecessary space consumption.</p>
+
+  <p>Work should be completed <strong>in pairs.</strong>  Be certain
+    to include both names in the comment block at the top of all
+    source code files, with a <tt>TA-BOT:MAILTO</tt> comment line including
+    any addresses that should automatically receive results.
+    It would be courteous to confirm with your
+    partner when submitting the assignment.
+    </p>
+
+  
+  <h2>Priority Scheduling</h2>
+
+  <h3 class="takehome">Preparation</h3>
+
+  <p> First, make a copy of your Project 5 directory:<br />
+    &nbsp; &nbsp; <tt>cp -R xinu-hw5 xinu-hw6</tt><br />
+    Then, untar the new project files on top of it:<br />
+    &nbsp; &nbsp; <tt>tar xvzf ~brylow/os/Projects/xinu-hw6.tgz</tt>
+  </p>
+  <p> Be certain to <tt>make clean</tt> before compiling for the first time.</p>
+
+
+<h3 class="takehome">Round-Robin Priority Scheduling</h3>
+
+  <p>
+    You will use three round-robin priority queues (one each for
+    "low", "medium", and "high" priority) to add priority scheduling
+    to your operating system.
+  </p>
+
+  <p> This priority scheduler can be implemented in four easy steps: </p>
+
+  <ul>
+    <li> Add a priority field called "<tt>priority</tt>" into the PCB structure
+      defined in <tt>include/proc.h</tt>. </li>
+    <li> Add priority parameter to <tt>create()</tt>, and properly
+      initialize the priority field in each new PCB created.</li>
+    <li> Modify the <tt>ready()</tt> and <tt>resched()</tt> functions
+      to properly use the three priority queues. See corresponding
+      TODO comments in <tt>ready.c</tt> and <tt>resched.c</tt> for
+      details. </li>
+	<li> Add the code specified below in the <code>dispatch()</code> function in <code>dispatch.c</code> </li>
+  </ul>
+
+  <p> New test cases are in <tt>system/testcases.c</tt>, which should
+    demonstrate priority-order execution once your new scheduler is
+    operational. You will need to create others to fully test your
+    implementation.
+  </p>
+    
+<h3 class="takehome">Starvation and Aging</h3>
+
+<p>One of the chief drawbacks to simple priority scheduling is that
+low priority processes may be <i>starved</i> by high priority
+processes. That is, they may never get to run at all.  One remedy for
+this it to implement <i>aging</i>, a scheme in which the effective
+priority of a process increases the longer it sits in the ready list without
+running.</p>
+
+<p>We've added a kernel configuration parameter "<tt>AGING</tt>" into <tt>include/kernel.h</tt>.  
+Add code into <tt>resched.c</tt> so that when <tt>AGING</tt>
+is <tt>TRUE</tt>, available processes are moved, or "promoted", 
+to a higher priority queue  
+when certain time conditions are met (see TODOs in <tt>resched()</tt> and 
+definitions in <tt>include/clock.h</tt>).
+</p>
+
+<p>Construct a test case that demonstrates process starvation when <tt>AGING</tt> is 
+<tt>FALSE</tt>, but demonstrates aging when <tt>AGING</tt> is set to <tt>TRUE</tt>.
+Put your aging test case in <tt>testcases.c</tt>, and make it run when the
+input is 'A'.</p>
+
+<h3 class="takehome">Preemption</h3>
+
+<p> The new files <tt>system/clk*</tt> will provide you with basic
+preemption, as discussed in class. Take time to familiarize yourself
+with the contents of these files, as you will be responsible for
+understanding how these components of the operating system work.</p>
+
+<p> Activate preemption by changing the <tt>PREEMPT</tt> constant
+in <tt>include/kernel.h</tt> to <tt>TRUE</tt>.
+
+How can you test that preemption is working in your system? Create a
+test case that demonstrates preemptive scheduling.  Put your
+preemption test case in <tt>testcases.c</tt>, and make it run when the
+input is 'P'.</p>
+
+<h3 class="takehome">dispatch.c</h3>
+The following lines (specifically the else statement) will need to be added to your <code>dispatch()</code> 
+function in the <code>dispatch.c</code> file to handle interrupts.
+<pre>
+if((long)cause > 0) {
+    cause = cause << 1;
+    cause = cause >> 1;
+
+    // ... Your dispatch code here ...
+} else {
+    cause = cause << 1;
+    cause = cause >> 1;
+    uint irq_num;
+
+    volatile uint *int_sclaim = (volatile uint *)(PLIC_BASE + 0x201004);
+    irq_num = *int_sclaim;
+
+    if(cause == I_SUPERVISOR_EXTERNAL) {
+        interrupt_handler_t handler = interruptVector[irq_num];
+
+        *int_sclaim = irq_num;
+        if (handler)
+        {
+            (*handler) ();
+        } else {
+            kprintf("ERROR: No handler registered for interrupt %u\r\n",
+                    irq_num);
+
+            while (1)
+                ;
+        }
+    }
+}
+</pre>
+
+<h3 class="takehome">Notes</h3>
+<ul>
+<li> To submit your project, please run "<tt>make clean</tt>" in your
+<tt>compile</tt> directory, change directory back two levels, and submit
+the entire system with the command <tt>turnin xinu-hw6</tt>.  You can
+verify what you have submitted using <tt>turnin -v</tt>.</li>
+
+<li> To complete this assignment, you will have made changes to
+several header files in the <tt>include/</tt> directory, and many .c files 
+in the <tt>system/</tt> directory.</li>
+
+</ul>
+
+</div>  
+
+<script src="../config.js"></script>
+<div style="clear: both;"></div> <hr style="width: 100%; height: 2px;"/>
+<p><a href="../">[back]</a></p>
+<p>[Revised 2023 Mar 01 14:54 DWB]</p>
+</body>
+</html>

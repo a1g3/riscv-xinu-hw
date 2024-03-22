@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="iso-8859-1"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+        "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+
+<head>
+  <title>Project 8</title>
+  <meta http-equiv="content-type"
+        content="text/html;charset=UTF-8" />
+  <meta http-equiv="Content-Style-Type" content="text/css" />
+  <meta name="author" content="Dennis Brylow and his minions" />
+  <meta name="copyright" content="Dennis Brylow and his minions 2023" />
+  <meta name="robots" content="all" />
+  <link rel="icon" href="../assets/images/favicon.png" type="image/x-icon" />
+  <link rel="shortcut icon" href="../assets/images/favicon.png" type="image/x-icon" />
+  <link rel="stylesheet" href="../styles.css" />
+</head>
+
+<body>
+<div class="TitleBlock">
+  <h1 id="FullCourseName"></h1>
+  <h2 id="Semester"></h2>
+
+  <h2>Project #8: Heap Memory</h2>
+</div>
+
+<div>
+  <p id="ProjectDeadline8"></p>
+  
+  <p>
+    <b>Submit:</b> Turn in your
+
+    entire <code>xinu-hw8</code> directory source files
+
+    using the <tt>turnin</tt> command
+    on <tt>morbius.mscsnet.mu.edu</tt> or one of the other
+    <a href="https://www.cs.mu.edu/~brylow/machine.txt">
+      Systems Lab machines</a>.  Please run "<tt>make clean</tt>" in
+      the
+    <tt>compile/</tt> subdirectory just before submission to reduce
+    unnecessary space consumption.
+  </p>
+
+  <p>
+    Work should be completed <strong>in pairs.</strong>  Be certain
+    to include both names in the comment block at the top of all
+    source code files, with a <tt>TA-BOT:MAILTO</tt> comment line
+    including any addresses that should automatically receive results.
+    It would be courteous to confirm with your partner when submitting
+    the assignment.
+  </p>
+
+<h2>Dynamic Memory Allocation</h2>
+
+<h3 class="takehome">Preparation</h3>
+
+  <p>
+    First, make a fresh copy of your work thus far.
+    <br />
+    &nbsp; &nbsp; &nbsp; <tt> cp -R xinu-hw7 xinu-hw8</tt>
+  </p>
+
+  <p>
+    Then, untar the new project files on top of it:
+    <br />
+    &nbsp; &nbsp; &nbsp; <tt>tar xvzf ~brylow/os/Projects/xinu-hw8.tgz</tt>
+  </p>
+
+  <p>
+    Be certain to <tt>make clean</tt> before compiling for the first time.
+  </p>
+
+
+<h3 class="takehome">Fixing a bug in create.c</h3>
+
+  <p>
+    As some of you may have seen, sometimes your OS will crash
+    when it gets to the null process.  If you wrote more elaborate 
+    testcases last assignment that called <code>user_yield</code>,
+    the same error will occur. This was due to user processes sharing the 
+    same kernel stack.  Since they are sharing the same kernel stack,
+    if one process yields, then the next process will overwrite any contents
+    the first process stored on it's kernel stack.  Once the first process runs again,
+    all it's kernel variables will be overwritten!  This is very bad!  There's
+    a simple one line fix to address this issue, when setting the <code>PREG_KERNSP</code>,
+    instead of setting it to <code>_kernsp</code>, we need to set it to <code>(ulong)pgalloc() + PAGE_SIZE</code>
+    This change will allow all proccess to get their own kernel stack, so they're not overwriting each other.
+    To learn more about stack and how compilers use them, take COSC 4400: Compilers in Fall 2024 
+    (or COSC 3410: Programming Languages next semester) with Dr. Brylow!
+  </p>
+
+<h3 class="takehome">Getmem and Freemem</h3>
+
+  <p>
+    The files <tt>include/memory.h</tt>
+    and <tt>system/vm_userinit.c</tt> define and initialize a free
+    lists of available memory blocks on the heap.
+    Implement <tt>system/getmem.c</tt>
+    and <tt>system/freemem.c</tt> to dole out blocks of requested
+    memory and properly maintain the free list.  Use First Fit with
+    simple compaction.  (Compaction is the "stretch" problem in this
+    assignment -- get everything else working first.)
+  </p>
+
+<h3 class="takehome">Malloc and Free</h3>
+
+  <p>
+    Your <tt>getmem()</tt> and <tt>freemem()</tt> functions assume
+    that the programmer independently tracks the size of an allocated
+    block, and passes that size as the second parameter
+    to <tt>freemem()</tt>.  Most operating systems APIs assume that
+    having the pointer to the beginning of the block is enough to free
+    it.  This can be accomplished through the use of accounting
+    information, often hidden adjacent to the memory block itself.
+  </p>
+
+  <p>
+    Implement <tt>malloc()</tt> and <tt>free()</tt> to work as
+    wrappers around <tt>getmem()</tt> and <tt>freemem()</tt> to
+    provide this API.  The <tt>malloc()</tt> function should pad the
+    request size to include an accounting block before
+    calling <tt>getmem()</tt>, and stores the accounting information
+    after the allocation.  The <tt>free()</tt> function recovers the
+    accounting information to provide the size to <tt>freemem()</tt>.
+  </p>
+
+<h3 class="takehome">Grading</h3>
+
+  <p>
+    Project credit will be divvied up evenly between getting memory,
+    freeing memory, compaction, and <tt>getstk()</tt> removal.  By
+    now, you should be aware that rigorous testing is the key to
+    success in these projects.  Our test cases will include at least:
+  </p>
+  
+  <ul>
+    <li>
+      Verifying that your <tt>getmem()</tt> and <tt>freemem()</tt>
+      functions operate correctly over a variety of request sizes;
+    </li>
+  
+    <li>
+      Checking your memory free list under a wide variety of
+      conditions; if you are not writing a helper function to print
+      out your free list, you are probably not serious about
+      understanding what your system is doing;
+    </li>
+  
+    <li>
+      Allocating and freeing as much memory as possible, (How can you
+      tell whether you have a memory leak?); and
+    </li>
+  
+    <li>
+      Verifying that your <tt>freemem()</tt> compaction works.
+    </li>
+  </ul>
+
+</div>
+
+<script src="../config.js?v=1"></script>
+<div style="clear: both;"></div> <hr style="width: 100%; height: 2px;"/>
+<p><a href="../">[back]</a></p>
+<p>[Revised 2023 Mar 29 13:57 DWB]</p>
+</body>
+</html>

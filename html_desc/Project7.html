@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="iso-8859-1"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+        "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+
+<head>
+  <title>Project 7</title>
+  <meta http-equiv="content-type"
+        content="text/html;charset=UTF-8" />
+  <meta http-equiv="Content-Style-Type" content="text/css" />
+  <meta name="author" content="Dennis Brylow" />
+  <meta name="copyright" content="Dennis Brylow 2023" />
+  <meta name="robots" content="all" />
+  <link rel="icon" href="../assets/images/favicon.png" type="image/x-icon" />
+  <link rel="shortcut icon" href="../assets/images/favicon.png" type="image/x-icon" />
+  <link rel="stylesheet" href="../styles.css" />
+</head>
+
+<body>
+<div class="TitleBlock">
+  <h1 id="FullCourseName"></h1>
+  <h2 id="Semester"></h2>
+
+  <h2>Project #7: Virtual Memory and Paging</h2>
+</div>
+
+<div>
+  <p id="ProjectDeadline7"></p>
+  
+  <p> <b>Submit:</b> Turn in your
+    entire <code>xinu-hw7</code> directory
+    source files using the
+    <tt>turnin</tt> command on <tt>morbius.mscsnet.mu.edu</tt> or
+    one of the other
+    <a href="https://www.cs.mu.edu/~brylow/machine.txt">
+      Systems Lab machines</a>.  Please run "<tt>make clean</tt>" in the
+    <tt>compile/</tt> subdirectory just before submission to reduce
+  unnecessary space consumption.</p>
+
+  <p>Work should be completed <strong>in pairs.</strong>  Be certain
+    to include both names in the comment block at the top of all
+    source code files, with a <tt>TA-BOT:MAILTO</tt> comment line including
+    any addresses that should automatically receive results.
+    It would be courteous to confirm with your
+    partner when submitting the assignment.
+    </p>
+
+  
+  <h2>Enough pages to make a book</h2>
+
+  <h3 class="takehome">Preparation</h3>
+
+  <p> First, make a copy of your Project 6 directory:<br />
+    &nbsp; &nbsp; <tt>cp -R xinu-hw6 xinu-hw7</tt><br />
+    Then, untar the new project files on top of it:<br />
+    &nbsp; &nbsp; <tt>tar xvzf ~brylow/os/Projects/xinu-hw7.tgz</tt>
+  </p>
+  <p> Be certain to <tt>make clean</tt> before compiling for the first time.</p>
+
+
+<h3 class="takehome">Paging</h3>
+
+  <p>
+    In this assignment, you will be implementing a function that given a virtual address,
+	walks the pagetable and returns the address of the page table entry (PTE).  It will
+	create any pages along the way.  Since we're dealing with paging and memory protection, there 
+	are multiple files that will need to be changed to account for the user processes' virtual address space.
+  </p>
+
+  <p> Paging can be implemented by the following steps: </p>
+
+  <ul>
+    <li><b>Understand paging and the paging system in RISC-V</b></li>
+    <li> Modify <code>dispatch</code> to use the swap area instead of frame. Have it return the value of the <code>satp</code> register</li>
+    <li> Modify <code>create</code> to create the stack by using a physical page. Call <code>vm_userinit</code> to create the user page table.  Make sure to set the stack pointer correctly. </li>
+	  <li> Modify <code>ctxsw</code> to take in the new process' satp value.  In <code>ctxsw</code>, after we set the <code>sepc</code> register, we can update the <code>satp</code> register (see other areas for example). </li>
+    <li> Write <code>pgTraverseAndCreate</code> to walk the page table for a virtual address and return the page table entry's address. </li>
+    <li> Uncomment the three lines in <code>initialize.c</code> to enable paging. </li>
+    <li> Write test cases to demonstrate paging and memory protection are working. </li>
+  </ul>
+
+  <p> New test cases are in <tt>system/testcases.c</tt>, which should
+    demonstrate memory protection and paging. You will need to create others to fully test your
+    implementation.
+  </p>
+    
+  <p> <b>This assignment involves a lot of work. There are 5 different files must be changed to support paging.  Even starting the assignment a few days before the deadline isn't enough time to make all the necessary changes.
+    We're giving you two weeks (excluding break) for a reason.  You'll need the full two weeks of class to fully complete this assignment. </b>
+  </p>
+
+
+<h2>RISC-V Paging</h2>
+<h3 class="takehome">Overview</h3>
+<img src="riscv-va-layout.png" />
+<p>
+  The CPU on the Sipeed Nezha implements the RISC-V Sv39 paging, meaning there are 39 bits used to map from a virtual address to a physical address.  In Sv39, all pages are 4096 bytes long.
+  The Sv39 paging uses a 3-level hierarchical page table to map from virtual addresses to physical addresses.  In the image of a virtual address above, VPN stands for virtual page number.  
+  The first 9-bits (VPN[2]) are used as the index into the first page table,  the middle 9 bits (VPN[1]) are used as the index into the second page table, and the right most 9 bits (VPN[0]) 
+  are used as the index into the last page table.  The last page table contains a page table entry with the physical address of the actual page in memory as well as any protection bits (see below).
+  The page offset is used to find which byte in the page is being referenced.
+</p>
+
+<h3 class="takehome">Page table entry (PTE)</h3>
+<img src="riscv-pte.png" />
+<p>
+  In every page table, there are page table entries.  In RISC-V pages are 4096 bytes.  Each PTE is 8 bytes long, meaning 4096/8 = 512 (2^9) page table entries on one page.
+  These entries can either point to another page table (called a link PTE) or point to the physical page (called a leaf PTE).  The format for the RISC-V page table entries is shown above.
+  Bits 0-7 are protection bits.  These bit meanings are described in <code>include/safemem.h</code>.  Bits 10-53 hold the physical page address.  In this class, we will not be using
+  bits 8-9 or bits 54-63.
+</p>
+
+<h3 class="takehome"><code>satp</code> Register</h3>
+<img src="riscv-satp.png" />
+<p>
+  The <code>satp</code> register contains the physical address of the root page table divided by the page size (4096 bytes) called the PPN (physical page number).  The MMU must know where the root page
+  table resides so it can start translation.  The <code>satp</code> register also holds the Address Space Identifier (ASID).  The TLB uses the ASID to determine if a new page table was swapped in.  If the ASID changes,
+  the TLB won't used the cached changes for the old ASID.  The mode bits are used to tell the MMU to use Sv39 paging.  In Embedded Xinu, we give you a helper function to do the bit shifting for creating a 
+  value to go into the <code>satp</code> register.  <code>MAKE_SATP(pid, physical_root_page_address)</code> is defined in <code>includes/safemem.h</code>.  Given a process ID (used as the ASID) and the 
+  physical address of the root page, <code>MAKE_SATP</code> does all the bit shifting to create the valid value to place in the <code>satp</code> register.  You will use <code>MAKE_SATP</code> in <code>dispatch</code> and
+  when calling <code>ctxsw</code>
+</p>
+
+<h2>Changes</h2>
+<h3 class="takehome">dispatch.c and the swap area</h3>
+
+<p>In previous assignments, <code>dispatch()</code> took in the frame (or the stack pointer) as a parameter.
+	Now that user processes have a virtualized view of memory, the stack pointer isn't an actual
+	physical address, rather it's a virtual address.  The kernel can't use the user's virtual address since it's 
+	local to that user process' page table.  Instead of saving registers onto the stack,
+	like we did in previous assignments, every user process has a page in memory called the swap area.
+	To make it easier for saving the registers, the swap area is at a fixed virtual address for every process.  When <code>interrupt</code> is called,
+	the OS will save all the registers into this swap area, switch to the kernel page table, and execute <code>dispatch</code>.  
+	When returning from <code>interrupt</code>, the user process' page table is loaded in and the registers are restored from
+	the swap area.  Every PCB has a <code>swaparea</code> that can be used as an array just like we've used frame previously.
+	You will need to remove frame as a parameter in <code>dispatch.c</code> and replace it with the <code>swaparea</code>.  <code>dispatch</code> should
+	return the value being loaded into the <code>satp</code> register.
+</p>
+
+<h3 class="takehome">create.c and getstk.c</h3>
+<p>
+  Now that paging is enabled, we no longer need to rely on the broken <code>getstk</code> to create a user process' stack.
+  Instead, you'll have to get a physical page in <code>create</code> to use that as the stack.  You'll have to pass that 
+  page into <code>vm_userinit</code> along with the PID.  <code>vm_userinit</code> will return the pagetable which should be
+  set on the PPCB.  The stack pointer address in the <code>regs</code> will have to be updated accordingly to take into account the virtual address,
+  the accounting information, and any arguments pushed onto the stack.  Finally, within the process' swap area, the <code>PREG_KERNSATP</code> and <code>PREG_KERNSP</code>
+  need to be set so the kernel can restore the kernel's stack and pagetable during an interrupt/exception.
+</p>
+
+<h3 class="takehome">map.c</h3>
+<p>
+  The functions in <code>map.c</code> take care of translating between physical and virtual addresses.  Given a root page table, a physical page and 
+  a virtual address, <code>mapPage</code> places that physical page at the virtual address for the root page table.  This is used in <code>vm_userinit.c</code> to map the stack you setup in <code>create.c</code> to the 
+  <code>PROCSTACKADDR</code> virtual address.  The <code>mapAddress</code> function is used to map a range of physical addresses to virtual addresses for a given root page table.  Both <code>mapPage</code>
+  and <code>mapAddress</code> rely on a helped function <code>pgTraverseAndCreate</code>. The main TODO for this assignment is in <code>pgTraverseAndCreate</code>.  <code>pgTraverseAndCreate</code>
+  walks the page table, for a given virtual address and sets up the page at the final level of the hierarchical page table.  See the TODO in <code>pgTraverseAndCreate</code> for more information.
+</p>
+
+<h3 class="takehome">Notes</h3>
+<ul>
+<li> To submit your project, please run "<tt>make clean</tt>" in your
+<tt>compile</tt> directory, change directory back two levels, and submit
+the entire system with the command <tt>turnin xinu-hw7</tt>.  You can
+verify what you have submitted using <tt>turnin -v</tt>.</li>
+
+<li> To complete this assignment, you will have made changes to
+header files in the <tt>include/</tt> directory, and many .c files 
+in the <tt>system/</tt> directory.</li>
+
+<li> For this assignment and the rest of the RISC-V assignments, our OS will start up in M-Mode (the highest privilege mode).  If you would like to run a previous assignment, you'll need to copy this assignment's
+  <code>system/start.S</code>, <code>system/criticalerr.S</code>, and <code>include/riscv.h</code> into the previous assignment.</li>
+
+</ul>
+
+</div>  
+
+<script src="../config.js"></script>
+<div style="clear: both;"></div> <hr style="width: 100%; height: 2px;"/>
+<p><a href="../">[back]</a></p>
+<p>[Revised 2023 Mar 09 12:49 DWB]</p>
+</body>
+</html>

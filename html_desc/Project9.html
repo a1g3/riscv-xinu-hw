@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="iso-8859-1"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+        "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+
+<head>
+  <title>Project 9</title>
+  <meta http-equiv="content-type"
+        content="text/html;charset=UTF-8" />
+  <meta http-equiv="Content-Style-Type" content="text/css" />
+  <meta name="author" content="Dennis Brylow and his minions" />
+  <meta name="copyright" content="Dennis Brylow and his minions 2023" />
+  <meta name="robots" content="all" />
+  <link rel="icon" href="../assets/images/favicon.png" type="image/x-icon" />
+  <link rel="shortcut icon" href="../assets/images/favicon.png" type="image/x-icon" />
+  <link rel="stylesheet" href="../styles.css" />
+</head>
+
+<body>
+<div class="TitleBlock">
+  <h1 id="FullCourseName"></h1>
+  <h2 id="Semester"></h2>
+
+  <h2>Project #9: Thread API</h2>
+</div>
+
+<div>
+  <p id="ProjectDeadline9"></p>
+  
+  <p>
+    <b>Submit:</b> Turn in your
+
+    entire <code>xinu-hw9</code> directory source files
+
+    using the <tt>turnin</tt> command
+    on <tt>morbius.mscsnet.mu.edu</tt> or one of the other
+    <a href="https://www.cs.mu.edu/~brylow/machine.txt">
+      Systems Lab machines</a>.  Please run "<tt>make clean</tt>" in
+      the
+    <tt>compile/</tt> subdirectory just before submission to reduce
+    unnecessary space consumption.
+  </p>
+
+  <p>
+    Work should be completed <strong>in pairs.</strong>  Be certain
+    to include both names in the comment block at the top of all
+    source code files, with a <tt>TA-BOT:MAILTO</tt> comment line
+    including any addresses that should automatically receive results.
+    It would be courteous to confirm with your partner when submitting
+    the assignment.
+  </p>
+
+<h2>Threads</h2>
+
+<h3 class="takehome">Preparation</h3>
+
+  <p>
+    Make a fresh copy of your work thus far.
+    <br />
+    &nbsp; &nbsp; &nbsp; <tt> cp -R xinu-hw8 xinu-hw9</tt>
+  </p>
+
+  <p>
+    Then, untar the new project files on top of it:
+    <br />
+    &nbsp; &nbsp; &nbsp; <tt>tar xvzf ~brylow/os/Projects/xinu-hw9.tgz</tt>
+  </p>
+
+  <p>
+    Be certain to <tt>make clean</tt> before compiling for the first time.
+  </p>
+
+  <h3 class="takehome">Threads vs. Processes</h3>
+
+  <p> The distinction between the concepts of "threads" and "processes"
+  can be an important one. Our textbook provides the definition that
+  processes execute in their own memory space, whereas threads share the
+  same memory space within a process.  But beyond that, most of the aspects
+  of processes we have already studied seem to repeat for threads -- you
+  need a thread control block, each thread gets its own stack of activation
+  records, we need to worry about a scheduling policy for deciding which
+  thread we will context switch to next, etc. </p>
+
+  <p> In truth, in the context of a simplified, embedded, educational operating
+  system like ours, the distinction between processes and threads is not
+  very relevant.  We could label it either way, and build out the system
+  in more concrete ways to reinforce that interpretation.  In this assignment,
+  we muddy the waters slightly further by implementing a crucial subset
+  of the standard PThreads API using what the lightweight processes we've
+  been working with all along. </p>
+
+<h3>Minor changes</h3>
+<p>In addition to the code changes below, there are a few minor changes needed to get this assignment running. The first change is a minor fix.  The second and third changes 
+  are related to sharing a page table between child and parent processes.  Since children and parent processes share a page table, they can't all have the same virtual address
+  for their process stack and swaparea.  Otherwise, they'd all overwrite each other!  Thus, we must give threads a unique virtual addresses for a virtual stack and swap area. 
+  To do this, we take into account the PID (unique to each process and thread) when creating the virtual addresses for the thread stack and swap area. 
+  To quickly access the PID in interrupt.S, we store the PID in the <tt>tp</tt> register.  We use the equation <code>[PROCSTACKADDR OR SWAPAREAADDR] - ((pid+1) * PAGE_SIZE)</code> to
+  calculate the virtual address for the thread stack and swap area.
+</p>
+<ul>
+  <li>In the <tt>mapPage</tt> and <tt>mapAddress</tt> functions in map.c, change the <tt>attr</tt> parameter to a ulong.</li>
+  <li>In create.c, set the <tt>tp</tt> register to the pid of the new process.  We will use the <tt>tp</tt> register to hold the current process ID.</li>
+  <li>In ctxsw.S, restore the <tt>tp</tt> register.</li>
+</ul>
+
+<h3 class="takehome">PThreads API</h3>
+
+  <p> The new tarball provides an <tt>include/pthread.h</tt> header that
+    defines the crucial <tt>#define</tt>s and function
+    prototypes to mimic the standard POSIX PThreads interface.
+    Chapter 27 in our textbook explains how this API works, and gives
+    excellent examples. </p>
+
+  <p> The mapping of these PThread functions to existing Embedded Xinu
+    functions is the primary content of this assignment. </p>
+
+  <ul>
+    <li>
+      <tt>pthread_create()</tt> creates a new thread, and returns its ID.
+	We can accomplish the same work with our new <tt>ptcreate()</tt>
+	function.  We'll define <tt>pthread_t</tt> as a PID, and ignore the
+	<tt>pthread_attr_t</tt> type as a <tt>NULL</tt> pointer.  The
+	mechanism for passing arguments to a pthread is more simplistic than
+	our varadic argument <tt>create()</tt>
+    </li>
+
+    <li>
+      <tt>pthread_join()</tt> is an important coordination function that
+	we do not currently have an analog for, so we must build one.
+	When process <i>A</i> calls <tt>pthread_join()</tt> on a process <i>B</i>,
+	process <i>A</i> poll the PCB of process <i>B</i>'s state until its <i>PRFREE</i>.
+	When process <i>B</i> terminates, process <i>A</i> should continue its execution. Since 
+  <tt>pthread_join()</tt> does not need special kernel priveldges, it can be implemented
+  completely in user land. Challenge/possible exam question, what could we do to improve this?
+  Given the structures currently implemented in our operating system, what could we do to avoid the polling?
+  <br />
+    </li>
+    <li> <tt> pthread_mutex_lock()</tt>, and </li> 
+    <li> <tt> pthread_mutex_unlock()</tt>  can be implemented
+      as a simple spinlock based on the atomic CAS operation now provided
+      in <tt>lock.c</tt>.
+    </li>
+  </ul>
+  
+<h2>Last Call for System Calls</h2>
+  <p>
+    Each of the four PThread API functions above should be implemented as
+    <i>system calls</i> by extending the trap handlers we built in
+    <a href="Project5.html">Project 5: Trap Handlers</a>.
+  </p>
+
+  <p>
+    Add new entries to the global <tt>syscall_table</tt> in
+    <tt>syscall_dispatch.c</tt>.  Note that the row in the table must
+    correspond to the correct syscall numbers defined above.  The
+    first column in the table is the number of arguments the syscall
+    expects.
+  </p>
+
+  <p> 
+    Repeat this process for our new PThreads interface:
+  </p>
+
+  <p>
+    <code>
+#define SYSCALL_PTCREATE &nbsp;&nbsp; 13 /**< PThread create                   */ <br />
+#define SYSCALL_PTLOCK &nbsp;&nbsp;&nbsp;&nbsp; 15 /**< PThread mutex lock               */ <br />
+#define SYSCALL_PTUNLOCK &nbsp;&nbsp; 16 /**< PThread mutex unlock             */
+    </code>
+  </p>
+
+  <p>  
+    When all is said and done, you should be able to compile and execute
+    our <a href="pdemo3.c">lab demo PThread code</a> correctly on your
+    Embedded Xinu kernel.
+  </p> 
+
+</div>
+
+<script src="../config.js?v=2"></script>
+<div style="clear: both;"></div> <hr style="width: 100%; height: 2px;"/>
+<p><a href="../">[back]</a></p>
+<p>[Revised 2023 Apr 19 23:31 DWB]</p>
+</body>
+</html>

@@ -1,0 +1,248 @@
+
+<?xml version="1.0" encoding="iso-8859-1"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+        "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+
+<head>
+  <title>Project 3</title>
+  <meta http-equiv="content-type"
+        content="text/html;charset=UTF-8" />
+  <meta http-equiv="Content-Style-Type" content="text/css" />
+  <meta name="author" content="Dennis Brylow" />
+  <meta name="copyright" content="Dennis Brylow 2020" />
+  <meta name="robots" content="all" />
+  <link rel="icon" href="../assets/images/favicon.png" type="image/x-icon" />
+  <link rel="shortcut icon" href="../assets/images/favicon.png" type="image/x-icon" />
+  <link rel="stylesheet" href="../styles.css" />
+</head>
+
+<body>
+<div class="TitleBlock">
+  <h1 id="FullCourseName"></h1>
+  <h2 id="Semester"></h2>
+
+  <h2>Project #3: Synchronous Serial Driver</h2>
+</div>
+
+<div>
+  <p id="ProjectDeadline3"></p>
+  
+  <p> <b>Submit:</b> Turn in your
+    <code>kprintf.c</code> and <code>testcases.c</code>
+    source files using the
+    <tt>turnin</tt> command on <tt>morbius.mscsnet.mu.edu</tt> or
+    one of the other
+    <a href="https://www.cs.mu.edu/~brylow/machine.txt">
+      Systems Lab machines</a>.</p>
+
+  <p>Work should be completed <strong>in pairs.</strong>  Be certain
+    to include both names in the comment block at the top of all
+    source code files. It would be courteous to confirm with your
+    partner when submitting the assignment.  You may modify any files
+    in the operating system, but only changes to "kprintf.c" will be
+    graded for this assignment.</p>
+
+
+<h2>Synchronous Serial Driver</h2>
+
+<h3 class="takehome">Preparation</h3>
+
+  <p> You will have to familiarize yourself with several common UNIX
+    tools for this assignment.  The first of these is <b>tar</b>, a
+    utility originally devised to create <b>t</b>ape <b>ar</b>chives
+    for the purpose of backing files up onto computer tapes.</p>
+
+  <p> While <tt>tar</tt> is still used to create tape backups of file
+    systems, it has become far more common to use <tt>tar</tt> to
+    group files and/or directories together into a single entity,
+    typically called a &quot;tar-ball.&quot; (So common is the use
+    of <tt>tar</tt> that it has been verbed in computer science
+    terminology: We speak of &quot;tarring&quot; files, or files that
+    have been &quot;tarred up.&quot;) <tt>Tar</tt> syntax is somewhat
+    arcane, as <tt>tar</tt> came into existence before modern
+    standards for command-line options.</p>
+  
+  <ul>
+    <li> Login to Morbius (or any of the
+	other <a href="https://www.cs.mu.edu/~brylow/machine.txt">
+	Systems Lab machines</a>
+      and change to your working directory.</li>
+    <li> Execute the the following command:<br />
+
+	&nbsp; &nbsp; <tt> tar xvzf ~brylow/os/Projects/xinu-hw3.tgz</tt>
+      </li>
+  </ul>
+  
+  <p>This untars the files into your working directory, in a subdirectory
+    called <tt>xinu-hw3</tt>.</p>
+
+  <p>For more information on <tt>tar</tt>, please see the UNIX man pages.</p>
+
+  
+<h3 class="takehome">Building</h3>
+
+  <p>While the <tt>gcc</tt> command-line options provide a great deal
+    of flexibility when compiling programs, things quickly become
+    unmanageable when the number of source files exceeds what you can
+    conveniently type in a few seconds.</p>
+
+  <p> The <b>make</b> utility can be thought of as a companion to the
+    compiler infrastructure (preprocessor, compiler, assembler, and
+    linker) that allows the build rules for large projects to be
+    explicitly encoded in <tt>Makefiles</tt>.  A <tt>Makefile</tt>
+    typically consists of common definitions, (such as, which compiler
+    to use), and a set of rules.  Each rule has a <i>target</i>, such
+    as the file that is to be built, and can be followed by a list of
+    dependencies and a sequence of steps to perform in order to build
+    that target.  In addition, <tt>make</tt> has quite a few common
+    rules built into it.</p>
+
+  <p> You will not have to write your own <tt>Makefiles</tt> for this
+    course, but you will have to use and possibly modify some for all
+    of our remaining assignments.  The <tt>Makefile</tt> is always
+    human-readable, so feel free to open them up and look
+    around.</p>
+
+  <p> To build the XINU operating system, perform the following steps:</p>
+
+  <ul>
+    <li> Change directory into the top level produced by the tar-ball,
+      called <tt>xinu-hw3</tt> for this assignment.</li>
+  
+    <li> Change directory into the subdirectory &quot;<tt>compile</tt>&quot;. 
+      This directory contains the XINU project <tt>Makefile</tt>, and is where
+      all of the compiled &quot;<tt>.o</tt>&quot; files will go.</li>
+  
+    <li> Execute the the following command:<br /> &nbsp;&nbsp; <tt>
+	make clean </tt><br /> By standard convention, almost
+	all <tt>Makefiles</tt> include a target called
+	&quot;clean&quot; that removes everything except the source
+	code.  The tar-ball you unpacked already should be clean, but
+	it never hurts to make sure that you are starting from a clean
+	slate.  You may find yourself using this command often.</li>
+  <li> Execute the the following command:<br />
+    &nbsp;&nbsp; <tt> make </tt></li>
+  </ul>
+
+  <p>This should produce about a page of output as each source file is
+    compiled, and the resulting object files are linked together to
+    form the operating system, a simple set of library functions, and
+    the boot loader.  If all goes as it should, you should find the
+    directory full of <tt>.o</tt> files from all of the source code in
+    the other subdirectories, and most importantly, a newly compiled
+    operating system image called &quot;<tt>xinu.boot</tt>.&quot;</p>
+
+  <p>For more information on <tt>make</tt>, please see the UNIX man pages.</p>
+
+  <p> Your XINU image is now ready to be run on a backend machine.  To
+    transfer it there, we have a special utility
+    called <b>riscv-console</b>.  Execute <tt>riscv-console</tt> in
+    the <tt>compile</tt> directory where your
+    <tt>xinu.boot</tt> file resides.  <tt>riscv-console</tt> will
+    connect your terminal to the first available backend machine, and you
+    should see a message like:<br />&nbsp;<br />
+
+    &nbsp;&nbsp; <tt>connection 'poodoo', class 'riscv', host 'morbius.mscs.mu.edu'</tt><br/>&nbsp;<br/>
+
+    depending on which backend you get.  This will be immediately
+    followed by a stream of automated commands as the embedded target
+    system boots, configures its network settings, and uploads
+    your <tt>xinu.boot</tt> kernel.</p>
+
+  <p> The most important thing to remember about <tt>riscv-console</tt>
+    is that it is <i>modal</i>, like <tt>vim</tt>.  You start out in
+    direct connection mode, in which your terminal connects directly
+    through special hardware to the serial console on your backend
+    machine.  To get out of <tt>riscv-console</tt>, hit Control-Space,
+    followed by the 'q' key. </p>
+
+  <h3 class="takehome">Embedded XINU Source</h3>
+
+  <p> The source tar-ball we are starting with contains only a few
+    files for the operating system proper, in the
+    subdirectory <tt>system</tt>.  We will be adding files into this
+    directory in every subsequent assignment.</p>
+
+  <p> The other files in the XINU subdirectories break down as follows:</p>
+
+  <ul>
+    <li>
+      <tt>compile/</tt> contains the compilation files for XINU.
+    </li>
+    <li> <tt>include/</tt> contains all of our local <tt>.h</tt>
+      header files used throughout the rest of the source code files.
+      At compile time, these are treated as being in a standard
+      location, so they can be included with
+      &quot;<tt>#include&lt;...&gt;</tt>&quot; rather than
+      &quot;<tt>#include&quot;...&quot;</tt>&quot;.  The header file
+      particularly important for this assignment
+      is <tt>include/ns16550.h</tt>, which contains the structure and
+      constants for the serial port hardware.
+    </li>
+    <li> <tt>lib/</tt> contains a small library of standard C functions we can
+      rely upon in the operating system, like <tt>strncmp()</tt> and 
+      <tt>atoi()</tt>, etc.  Remember -- the UNIX system libraries are
+      not available to our operating system running on the backend!
+    </li>
+    <li> <tt>system/</tt> contains a file called <tt>start.S</tt>,
+    XINU's boot loader for this platform, which sets up the multicore
+    architecture and passes control to the operating system startup
+    code in the file called <tt>initialize.c</tt>.
+    </li>
+    <li> At any time throughout this course, to achieve a solid
+      understanding of what the OS is programmed to do, your are
+      encouraged to navigate and observe XINU's boiler-plate files.
+    </li>
+  </ul>
+
+  <h3 class="takehome">Synchronous Serial Driver</h3>
+
+  <p> Your task for this assignment is to write a simple
+    <i>synchronous serial driver</i> for the embedded operating
+    system, so that you can see what you are doing in all subsequent
+    assignments.</p>
+
+  <p> The driver is "synchronous" because it waits for the slow I/O
+    device to do its work, rather than using interrupts to communicate
+    with the hardware.</p>
+
+  <p> The driver is "serial" because it sends characters one at a time
+    down an RS-232 serial port interface, like the one found on most
+    modern PC's.</p>
+
+  <p> The driver is a "driver" because it provides the software
+    interface necessary for the operating system to communicate with
+    the hardware which, in this case, is an I/O device.</p>
+
+  <p> This platform's serial port, or UART (Universal Asynchronous
+    Receiver / Transmitter) is a member of the venerable 16550 family
+    of UARTs,
+    documented <a href="https://dl.linux-sunxi.org/D1/D1_User_Manual_V0.1_Draft_Version.pdf">here</a>. Of
+    particular interest to us is section 9.2.5 of the specification,
+    which describes the registers accessible to programmers. On this
+    platform (the Sipeed Nezha), the UART control and status
+    registers are memory-mapped, starting with base address
+    0x2500000. You can view these address definitions
+    in <tt>include/ns16550.h</tt></p>
+
+  <p> The file <tt>system/kprintf.c</tt> has the skeleton code for
+    four I/O-related functions: <tt>kputc()</tt>, (puts a single
+    character to the serial port,) <tt>kgetc()</tt>, (gets a single
+    character from the serial port,) <tt>kungetc()</tt>, (puts "back"
+    a single character, ala K&R's <tt>getch()</tt>
+    and <tt>ungetch()</tt> functions,) and <tt>kcheckc()</tt> (checks
+    whether a character is available.)  Each function contains a
+    "TODO" comment where you should add code.  The
+    actual <tt>kprintf()</tt> is already complete; it will begin
+    working as soon as you complete the <tt>kputc()</tt> function upon
+    which it relies.</p>
+  
+  
+
+<script src="../config.js"></script>
+<div style="clear: both;"></div> <hr style="width: 100%; height: 2px;"/>
+<p><a href="../">[back]</a></p>
+<p>[Revised 2023 Jan 31 02:35 DWB]</p>
+</body>
+</html>

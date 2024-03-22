@@ -1,0 +1,199 @@
+<?xml version="1.0" encoding="iso-8859-1"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+        "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+
+<head>
+  <title>Project 4</title>
+  <meta http-equiv="content-type"
+        content="text/html;charset=UTF-8" />
+  <meta http-equiv="Content-Style-Type" content="text/css" />
+  <meta name="author" content="Dennis Brylow" />
+  <meta name="copyright" content="Dennis Brylow 2023" />
+  <meta name="robots" content="all" />
+  <link rel="icon" href="../assets/images/favicon.png" type="image/x-icon" />
+  <link rel="shortcut icon" href="../assets/images/favicon.png" type="image/x-icon" />
+  <link rel="stylesheet" href="../styles.css" />
+</head>
+
+<body>
+<div class="TitleBlock">
+  <h1 id="FullCourseName"></h1>
+  <h2 id="Semester"></h2>
+
+  <h2>Project #4: Cooperating Scheduling</h2>
+</div>
+
+<div>
+  <p id="ProjectDeadline4"></p>
+  
+  <p> <b>Submit:</b> Turn in your
+    <code>create.c</code>, <code>ctxsw.S</code>, and
+    <code>testcases.c</code>
+    source files using the
+    <tt>turnin</tt> command on <tt>morbius.mscsnet.mu.edu</tt> or
+    one of the other
+    <a href="https://www.cs.mu.edu/~brylow/machine.txt">
+      Systems Lab machines</a>.</p>
+
+  <p>Work should be completed <strong>in pairs.</strong>  Be certain
+    to include both names in the comment block at the top of all
+    source code files. It would be courteous to confirm with your
+    partner when submitting the assignment.  You may modify any files
+    in the operating system, but only changes to
+    <code>ctxsw.S</code>, <code>create.c</code> and <code>testcases.c</code>
+    will be graded for this assignment.</p>
+
+  
+  <h2>Processes</h2>
+
+  <h3 class="takehome">Preparation</h3>
+
+  <p> First, make a copy of your Project 3 directory:<br>
+&nbsp; &nbsp; <tt>cp -R xinu-hw3 xinu-hw4</tt><br>
+Then, untar the new project files on top of it:<br>
+&nbsp; &nbsp; <tt>tar xvzf ~brylow/os/Projects/xinu-hw4.tgz</tt></p>
+
+<p> New files:
+
+<blockquote><table border="0" cellpadding="0" width="100%">
+   <tbody>
+      <tr>
+         <td><tt>system/initialize.c</tt></td>
+	 <td width="20">&nbsp;</td>
+	 <td>Updated initialization for Project 4.</td>
+     </tr>
+     <tr>
+         <td><tt>system/main.c</tt></td>
+	 <td>&nbsp;</td>
+	 <td>A "main program" for testing scheduling.</td>
+     </tr>
+     <tr>
+         <td><tt>system/queue.c</tt></td>
+	 <td>&nbsp;</td>
+	 <td>An implementation of the queue data structure.</td>
+     </tr>
+     <tr>
+         <td><tt>system/create.c</tt></td>
+	 <td>&nbsp;</td>
+	 <td>A partial function for creating a new process.</td>
+     </tr>
+     <tr>
+         <td><tt>system/ctxsw.S</tt></td>
+	 <td>&nbsp;</td>
+	 <td>An incomplete assembly routine for switching process contexts.</td>
+     </tr>
+     <tr>
+         <td><tt>system/ready.c</tt></td>
+	 <td>&nbsp;</td>
+	 <td>An complete function for adding a process to a ready queue.</td>
+     </tr>
+     <tr>
+      <td><tt>system/kill.c</tt></td>
+  <td>&nbsp;</td>
+  <td>An complete function for killing processes in any state.</td>
+    </tr>
+     <tr>
+         <td><tt>include/proc.h</tt></td>
+	 <td>&nbsp;</td>
+	 <td>Process table declarations and constants.</td>
+     </tr>
+     <tr>
+         <td><tt>include/queue.h</tt></td>
+	 <td>&nbsp;</td>
+	 <td>Process queue entries.</td>
+     </tr>
+     <tr>
+         <td><tt>include/kernel.h</tt></td>
+	 <td>&nbsp;</td>
+	 <td>Definitions of XINU standard function prototypes such as kprintf().</td>
+     </tr>
+     <tr>
+         <td><tt>include/xinu.h</tt></td>
+	 <td>&nbsp;</td>
+	 <td>Includes all necessary XINU header files.</td>
+     </tr>
+     <tr>
+         <td><tt>include/stddef.h</tt></td>
+	 <td>&nbsp;</td>
+	 <td>Various standard XINU type definitions.</td>
+     </tr>
+   </tbody></table></blockquote>
+</p>
+
+<p>
+  The <tt>create()</tt> and <tt>ctxsw()</tt> functions are incomplete and must
+  be filled in.  The major locations are marked with "<tt>// TODO...</tt> ."
+  File <tt>system/testcases.c</tt> contains code to test your <tt>create()</tt>
+  and <tt>ctxsw()</tt> with three processes, each of which prints a process ID
+  and then yields.  Once your creation and context switch functions are
+  working, you will see these three processes take turns running on a single core.
+</p>
+
+
+<p>&nbsp;</p>
+<h3 class="takehome">Some Assembly Required</h3>
+
+<p>
+  An operating system's context switch function typically must be written in
+  assembly language because the low level manipulations it performs are not
+  modeled well in higher-level languages. If you have not worked in RISC-V
+  assembly language before, there are many helpful resources available online.
+  Despite its low-level nature, a context switch does not require complex
+  instructions. Our context switch can be completed using the load doubleword (<tt>ld</tt>), 
+  store doubleword (<tt>sd</tt>), move (<tt>mv</tt>), and jump-and-link-register (<tt>jalr</tt>) opcodes.
+</p>
+
+<p>
+  Please refer to <a href="https://www.cl.cam.ac.uk/teaching/1617/ECAD+Arch/files/docs/RISCVGreenCardv8-20151013.pdf">RISC-V Reference Card</a> 
+  by the University of Cambridge for an explanation of general RISC-V opcodes.
+</p>
+
+<p>
+  <strong>Note: </strong>The Sipeed Nezha is equipped with a Allwinner D1
+  processor, which implements the RISC-V 64-bit instruction set.
+</p>
+
+
+<p>&nbsp;</p>
+<h3 class="takehome">Testing</h3>
+
+<p>
+  The default test cases provided with the tarball is necessary, but not
+  sufficient.  Just because it switches between a handful of identical
+  processes does not guarantee correctness. In embedded systems, details
+  matter.  (A LOT!)  Students in previous terms have found that subtle bugs in
+  this phase of the term project were responsible for nightmares weeks and
+  months down the line.  Test your code <b>thoroughly:</b>
+</p>
+<ul>
+  <li>
+    Processes can be passed an arbitrary number of parameters upon creation;
+  </li>
+  <li> 
+    Processes should terminate cleanly upon exit;
+  </li>
+  <li>
+    Stack pointers and activation records should align properly and
+    have known contents at critical check points.
+  </li>
+  <li>
+    <tt>ready(pid_typ pid, bool resch)</tt> is at your disposal for 
+    running your processes.
+  </li>
+</ul>
+
+<p>
+  You have a working I/O driver, and a kprintf() function for formatted output.
+  Use these to explore every aspect of the operating system structures you are
+  building.
+</p>
+
+</div>  
+
+<script src="../config.js"></script>
+<div style="clear: both;"></div> <hr style="width: 100%; height: 2px;"/>
+<p><a href="../">[back]</a></p>
+<p>[Revised 2023 Feb 08 10:09 DWB]</p>
+</body>
+</html>

@@ -1,0 +1,231 @@
+<?xml version="1.0" encoding="iso-8859-1"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+        "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+
+<head>
+  <title>Project 5</title>
+  <meta http-equiv="content-type"
+        content="text/html;charset=UTF-8" />
+  <meta http-equiv="Content-Style-Type" content="text/css" />
+  <meta name="author" content="Dennis Brylow" />
+  <meta name="copyright" content="Dennis Brylow 2023" />
+  <meta name="robots" content="all" />
+  <link rel="icon" href="../assets/images/favicon.png" type="image/x-icon" />
+  <link rel="shortcut icon" href="../assets/images/favicon.png" type="image/x-icon" />
+  <link rel="stylesheet" href="../styles.css" />
+</head>
+
+<body>
+<div class="TitleBlock">
+  <h1 id="FullCourseName"></h1>
+  <h2 id="Semester"></h2>
+
+  <h2>Project #5: Trap Handlers</h2>
+</div>
+
+<div>
+  <p id="ProjectDeadline5"></p>
+  
+  <p> <b>Submit:</b> Turn in your
+    <code>dispatch.c</code> and
+    <code>testcases.c</code>
+    source files using the
+    <tt>turnin</tt> command on <tt>morbius.mscsnet.mu.edu</tt> or
+    one of the other
+    <a href="https://www.cs.mu.edu/~brylow/machine.txt">
+      Systems Lab machines</a>.</p>
+
+  <p>Work should be completed <strong>in pairs.</strong>  Be certain
+    to include both names in the comment block at the top of all
+    submitted source code files. It would be courteous to confirm with your
+    partner when submitting the assignment.  You may modify any files
+    in the operating system, but only changes to
+    <code>dispatch.c</code> and <code>testcases.c</code>
+    will be graded for this assignment.</p>
+
+  
+  <h2>It's a Trap!</h2>
+
+  <h3 class="takehome">Preparation</h3>
+
+  <p>
+  First, make a copy of your Project 4 directory:<br> &nbsp; &nbsp; <tt>cp -R
+  xinu-hw4 xinu-hw5</tt><br> Then, untar the new project files on top of
+  it:<br> &nbsp; &nbsp; <tt>tar xvzf ~brylow/os/Projects/xinu-hw5.tgz</tt>
+  </p>
+
+<p> New files:
+
+<blockquote><table border="0" cellpadding="0" width="100%">
+   <tbody>
+      <tr>
+         <td><tt>system/start.S</tt></td>
+	 <td width="20">&nbsp;</td>
+	 <td>Updated O/S start with exception handlers in place.</td>
+     </tr>
+     <tr>
+         <td><tt>system/interrupt.S</tt></td>
+	 <td>&nbsp;</td>
+	 <td>RISC-V assembly code for managing exceptions -- calls dispatch().</td>
+     </tr>
+     <tr>
+         <td><tt>system/xtrap.c</tt></td>
+	 <td>&nbsp;</td>
+	 <td>Default Xinu Trap Handler catches exceptions.</td>
+     </tr>
+     <tr>
+         <td><tt>system/dispatch.c</tt></td>
+	 <td>&nbsp;</td>
+	 <td>Dispatcher for interrupts and exceptions, called from interrupt.S.</td>
+     </tr>
+     <tr>
+         <td><tt>system/syscall_dispatch.c</tt></td>
+	 <td>&nbsp;</td>
+	 <td>A simple system call interface, plus stubs for several simple user and kernel syscall components.  You must call this from dispatch().</td>
+     </tr>
+     <tr>
+         <td><tt>include/syscall.h</tt></td>
+	 <td>&nbsp;</td>
+	 <td>New header with syscall definitions, structures and prototypes.</td>
+     </tr>
+   </tbody></table></blockquote>
+</p>
+
+<p>
+  The <tt>dispatch()</tt> currently function defaults to treating the <code>ecall</code>
+  (environment call) instruction as a generic, show-stopping hardware
+  exception.  You must add the intelligence to recognize when the exception
+  is caused by a deliberate System Call from a "user" process in to the
+  "kernel", and collect the system state information necessary for
+  <tt>syscall_dispatch()</tt> to do its work.
+</p>
+
+<p>
+  To begin, we'll start with just five simple syscalls:
+</p>
+
+<ul>
+  <li>
+    <code>user_none()</code> - A dummy syscall that goes to the O/S kernel,
+    does nothing, and comes back.
+  </li>
+  <li>
+    <code>user_yield()</code> - Allows the current running process to yield the
+    processor, inviting the O/S to reschedule another process to run, if
+    conditions permit.
+  </li>
+  <li>
+    <code> user_getc()</code> - Fetches a character from a hardware input
+    device.  By default, device '0' will be your existing synchronous serial
+    port driver.
+  </li>
+  <li>
+    <code> user_putc()</code> - Writes a character to a hardware output device.
+    By default, device '0' will be your existing synchronous serial port
+    driver.
+  </li>
+  <li>
+    <code> user_kill()</code> - Kills the current running process
+  </li>
+</ul>
+
+<img src="priv.png" />
+
+<p>
+   It's important to understand the various privilege levels a RISC-V
+   processor can be in. Different privilege levels dictate which
+   control and status registers can be accessed.  RISC-V has three different
+   privilege levels (listed from highest to lowest privilege).
+   <ol>
+      <li>Machine mode (M-Mode) - Allows unfettered access to all control and status level registers.  Any program running in M-Mode has virtually no restrictions.  On our RISC-V boards, only U-Boot runs in M-Mode.</li>
+      <li>Supervisor mode (S-Mode) - Allows the program to modify any supervisor-level control and status registers.  S-Mode is designed for running a kernel. In our implementation, only the main processes will run in S-Mode.  All other processes will run in U-Mode.</li>
+      <li>User mode (U-Mode) - A process running here cannot modify any of the hardware or the control and status registers. It must execute a system call so a higher privilege mode can do that action on its behalf.</li>
+   </ol>
+   A process cannot simply change it's own privilege level.  That would circumvent security completely!  Instead it must make a system call using the <code>ecall</code> instruction.  Once an <code>ecall</code> instruction is executed, the processor automatically elevates to the next higher
+   privilege level and runs that privilege's trap handler.  Once that mode is done servicing the trap, it executes an <code>mret</code> or <code>sret</code> (depending on the mode) instruction to return to the privilege mode it was previously in and continue where it left off.
+</p>
+
+<p>
+	Once you believe your've finished your trap handler, you will need to make modifications to <code>ctxsw.S</code>
+	and <code>create.c</code> files.  In <code>ctxsw.S</code>, you need remove the <code>jalr</code> line and replace it with
+	<pre>
+	ld t0, PREG_PC*8(**REGISTER THAT HOLDS newregs ADDRESS**)
+	beq t0, ra, switch
+	li t4, SSTATUS_S_MODE
+	csrc sstatus, t4
+	csrw sepc, t0
+
+	sret
+switch:
+	ret
+	</pre>
+	This section of code switches from S-Mode to U-Mode if the process is running the first time.  All other times, the process
+	must have got to ctxsw from a trap, thus we will let the trap handler switch modes when it returns.
+
+	Since <code>kill()</code> is a kernel mode function (which should not be directly called by user processes), you must change the <code>kill(currpid);</code> line in <code>create.c</code> to <code>user_kill();</code>  
+ </p>
+
+<p>
+   Our current simple embedded O/S does not yet provide <i>memory
+   protection</i>.  As a result, our system call interface
+   will only provide the first of required components for protecting the
+   O/S from user processes.  Your user processes will still be able to call
+   <b>most</b> arbitrary internal kernel functions without going through the system call
+   interface, and read or write data from other processes or the O/S itself. Since
+   <code>ctxsw</code> has a special instruction (<code>sret</code>) that can only be run from S-Mode,
+   only processes running in S-Mode (like the init process) can run ctxsw.  If you
+   get an Illegal Instruction exception, that means you're calling functions from
+   a mode that you don't have the privilege to call.
+</p>
+
+<p>
+   As we add more features to our O/S in weeks to come, we will create the
+   memory virtualization abstractions that will prevent user code from
+   accessing O/S functions and data without going through an approved
+   <code>user_*</code> system call function.  For now, we're building system
+   calls even though all of our processes are still executing at the "kernel"
+   privilege level, with unrestricted view of all memory.
+</p>
+
+<p>&nbsp;</p>
+<h3 class="takehome">Testing</h3>
+
+<p>
+  The default test cases provided with the tarball exercise each one of our
+  starting system calls at least once.  Judicious use of additional debugging
+  <code>kprintf()</code> calls will be essential for debugging your system
+  call interface as you build it.  Be certain to comment out these debugging
+  statements when you turn in your code each night, lest TA-Bot find your
+  code unworthy.
+</p>
+
+<p>
+  Once you have the basics working, consider filling in some of the other
+  system call stubs left for future expansion, or write a version of
+  <code>user_printf()</code> that processes all of the format string in
+  the user process, but relies on the <code>user_putc()</code> syscall for
+  requesting that the O/S output each resulting character.
+</p>
+
+<p>
+  This project can be completed in fewer than a dozen lines of code, but
+  the technical details of the system call can be quite complex and
+  hard to keep straight.  It is very unlikely that random code snippets from
+  the Internet will help to solve this one -- it is essential that you
+  understand the data structures and mechanisms involved, and reason through
+  an adequate design to solve the problem.
+</p>
+
+</div>  
+
+  <div style="float: left; margin-left: 20px;">
+  <img src="https://www.cs.mu.edu/~brylow/cosc3250/current/assets/images/Ackbar_HS.jpg" style="width: 60px; border: none" alt="Admiral Gial Ackbar" /></a>
+  </div>
+
+<script src="../config.js"></script>
+<div style="clear: both;"></div> <hr style="width: 100%; height: 2px;"/>
+<p><a href="../">[back]</a></p>
+<p>[Revised 2023 Feb 22 02:42 DWB]</p>
+</body>
+</html>
